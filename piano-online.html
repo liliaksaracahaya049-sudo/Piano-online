@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Piano Online - Suara Asli</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1b120c">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+<style>
+  :root {
+    --bg: #1b120c;
+    --key-white: #fff8f0;
+    --key-white-active: #e8b98a;
+    --key-black: #2a1c14;
+    --key-black-active: #a9662f;
+    --accent: #c97a3d;
+    --text: #fff8f0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 16px;
+  }
+  h1 {
+    font-size: 1.3rem;
+    margin: 0 0 4px 0;
+  }
+  p.subtitle {
+    margin: 0 0 20px 0;
+    color: #d8c3ae;
+    font-size: 0.95rem;
+  }
+  #status {
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: #2a1c14;
+    font-size: 0.95rem;
+  }
+  button.load-btn {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    font-size: 1.1rem;
+    border: none;
+    border-radius: 12px;
+    background: var(--accent);
+    color: #1b120c;
+    font-weight: 700;
+    margin-bottom: 20px;
+  }
+  button.load-btn:active { background: #e8934f; }
+
+  .octave {
+    margin-bottom: 18px;
+  }
+  .octave h2 {
+    font-size: 1rem;
+    margin: 0 0 8px 2px;
+    color: #d8c3ae;
+    font-weight: 600;
+  }
+  .keys {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .key {
+    flex: 1 1 40px;
+    min-width: 40px;
+    padding: 22px 0;
+    text-align: center;
+    border-radius: 8px;
+    border: 2px solid #4a3222;
+    background: var(--key-white);
+    color: #1b120c;
+    font-weight: 700;
+    font-size: 1rem;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .key.black {
+    background: var(--key-black);
+    color: var(--key-white);
+    border-color: #000;
+  }
+  .key.active {
+    background: var(--key-white-active) !important;
+  }
+  .key.black.active {
+    background: var(--key-black-active) !important;
+  }
+  footer {
+    margin-top: 24px;
+    font-size: 0.85rem;
+    color: #a08a76;
+  }
+</style>
+</head>
+<body>
+
+<h1>Piano Online</h1>
+<p class="subtitle">Suara asli piano akustik (Salamander Grand Piano), langsung dari HP kamu.</p>
+
+<div id="status" role="status" aria-live="polite">Sample piano belum dimuat. Tekan tombol di bawah dulu.</div>
+
+<button class="load-btn" id="loadBtn" aria-label="Muat suara piano lalu mulai main">
+  Muat & Mulai Main Piano
+</button>
+
+<main
+  id="pianoContainer"
+  role="application"
+  aria-roledescription="papan piano"
+  aria-label="Papan tuts piano. Sentuh untuk main langsung, tersusun per oktaf dari kiri ke kanan."
+  hidden>
+</main>
+
+<footer>
+  Sample suara: Salamander Grand Piano (Creative Commons). Ketuk tuts untuk membunyikan, bisa ditekan beberapa tuts sekaligus.
+  <br>Catatan: di dalam area piano, Jieshuo akan meneruskan sentuhanmu langsung buat main nada (bukan mode baca), jadi begitu jari nyentuh tuts, nadanya langsung bunyi.
+  <br><br>Kalau pakai keyboard fisik/Bluetooth: baris A S D F G H J K L ; buat tuts putih (Do sampai Mi oktaf berikutnya), baris W E T Y U O P buat tuts hitam. Tombol Z buat pindah oktaf lebih rendah, tombol X buat pindah oktaf lebih tinggi.
+</footer>
+
+<script>
+(function () {
+  const NOTE_NAMES_ID = {
+    "C": "Do", "C#": "Do kres", "D": "Re", "D#": "Re kres",
+    "E": "Mi", "F": "Fa", "F#": "Fa kres", "G": "Sol",
+    "G#": "Sol kres", "A": "La", "A#": "La kres", "B": "Si"
+  };
+  const WHITE = ["C", "D", "E", "F", "G", "A", "B"];
+  const BLACK = ["C#", "D#", null, "F#", "G#", "A#", null];
+
+  const statusEl = document.getElementById("status");
+  const loadBtn = document.getElementById("loadBtn");
+  const container = document.getElementById("pianoContainer");
+
+  let sampler = null;
+
+  function buildKeyboard(octaves) {
+    container.innerHTML = "";
+    octaves.forEach((oct) => {
+      const wrap = document.createElement("section");
+      wrap.className = "octave";
+
+      const title = document.createElement("h2");
+      title.textContent = "Oktaf " + oct;
+      wrap.appendChild(title);
+
+      const row = document.createElement("div");
+      row.className = "keys";
+
+      WHITE.forEach((letter, i) => {
+        const note = letter + oct;
+        const key = makeKey(note, false);
+        row.appendChild(key);
+
+        const blackLetter = BLACK[i];
+        if (blackLetter) {
+          const bnote = blackLetter + oct;
+          const bkey = makeKey(bnote, true);
+          row.appendChild(bkey);
+        }
+      });
+
+      wrap.appendChild(row);
+      container.appendChild(wrap);
+    });
+  }
+
+  function makeKey(note, isBlack) {
+    const btn = document.createElement("button");
+    btn.className = "key" + (isBlack ? " black" : "");
+    const letter = note.slice(0, -1);
+    const oct = note.slice(-1);
+    btn.textContent = letter;
+    btn.setAttribute("aria-label", (NOTE_NAMES_ID[letter] || letter) + " oktaf " + oct);
+    btn.dataset.note = note;
+
+    const play = (e) => {
+      e.preventDefault();
+      if (sampler) {
+        sampler.triggerAttack(note);
+      }
+      btn.classList.add("active");
+    };
+    const stop = (e) => {
+      if (e) e.preventDefault();
+      if (sampler) {
+        sampler.triggerRelease(note);
+      }
+      btn.classList.remove("active");
+    };
+
+    btn.addEventListener("touchstart", play, { passive: false });
+    btn.addEventListener("touchend", stop, { passive: false });
+    btn.addEventListener("touchcancel", stop, { passive: false });
+    btn.addEventListener("mousedown", play);
+    btn.addEventListener("mouseup", stop);
+    btn.addEventListener("mouseleave", stop);
+    btn.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") play(e);
+    });
+    btn.addEventListener("keyup", (e) => {
+      if (e.key === "Enter" || e.key === " ") stop(e);
+    });
+
+    return btn;
+  }
+
+  loadBtn.addEventListener("click", async () => {
+    loadBtn.disabled = true;
+    loadBtn.textContent = "Sedang memuat suara...";
+    statusEl.textContent = "Sedang memuat sample piano, tunggu sebentar ya...";
+
+    await Tone.start();
+
+    sampler = new Tone.Sampler({
+      urls: {
+        "A0": "A0.mp3", "C1": "C1.mp3", "D#1": "Ds1.mp3", "F#1": "Fs1.mp3",
+        "A1": "A1.mp3", "C2": "C2.mp3", "D#2": "Ds2.mp3", "F#2": "Fs2.mp3",
+        "A2": "A2.mp3", "C3": "C3.mp3", "D#3": "Ds3.mp3", "F#3": "Fs3.mp3",
+        "A3": "A3.mp3", "C4": "C4.mp3", "D#4": "Ds4.mp3", "F#4": "Fs4.mp3",
+        "A4": "A4.mp3", "C5": "C5.mp3", "D#5": "Ds5.mp3", "F#5": "Fs5.mp3",
+        "A5": "A5.mp3", "C6": "C6.mp3", "D#6": "Ds6.mp3", "F#6": "Fs6.mp3",
+        "A6": "A6.mp3", "C7": "C7.mp3"
+      },
+      baseUrl: "https://tonejs.github.io/audio/salamander/",
+      release: 1.4,
+      curve: "exponential",
+      onload: () => {
+        statusEl.textContent = "Siap! Sample piano sudah dimuat, ketuk tuts untuk main.";
+        loadBtn.hidden = true;
+        container.hidden = false;
+      }
+    });
+
+    const reverb = new Tone.Reverb({
+      decay: 1.8,
+      wet: 0.22
+    }).toDestination();
+    await reverb.generate();
+    sampler.connect(reverb);
+
+    buildKeyboard([3, 4, 5]);
+  });
+
+  // ===== Dukungan keyboard fisik / Bluetooth =====
+  const NOTES_ORDER = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  // Offset semitone dari C di oktaf aktif
+  const KEY_TO_OFFSET = {
+    "a": 0, "w": 1, "s": 2, "e": 3, "d": 4, "f": 5, "t": 6,
+    "g": 7, "y": 8, "h": 9, "u": 10, "j": 11, "k": 12, "o": 13,
+    "l": 14, "p": 15, ";": 16
+  };
+
+  let currentOctave = 4;
+  const heldKeys = new Set();
+
+  function offsetToNote(baseOctave, offset) {
+    const idx = ((offset % 12) + 12) % 12;
+    const octShift = Math.floor(offset / 12);
+    return NOTES_ORDER[idx] + (baseOctave + octShift);
+  }
+
+  function highlightKey(note, isActive) {
+    const btn = document.querySelector('.key[data-note="' + note + '"]');
+    if (btn) btn.classList.toggle("active", isActive);
+  }
+
+  window.addEventListener("keydown", (e) => {
+    if (!sampler) return;
+    const key = e.key.toLowerCase();
+
+    if (key === "z") {
+      currentOctave = Math.max(2, currentOctave - 1);
+      statusEl.textContent = "Oktaf keyboard fisik: " + currentOctave;
+      return;
+    }
+    if (key === "x") {
+      currentOctave = Math.min(6, currentOctave + 1);
+      statusEl.textContent = "Oktaf keyboard fisik: " + currentOctave;
+      return;
+    }
+
+    if (!(key in KEY_TO_OFFSET) || e.repeat || heldKeys.has(key)) return;
+    heldKeys.add(key);
+
+    const note = offsetToNote(currentOctave, KEY_TO_OFFSET[key]);
+    sampler.triggerAttack(note);
+    highlightKey(note, true);
+  });
+
+  window.addEventListener("keyup", (e) => {
+    const key = e.key.toLowerCase();
+    if (!(key in KEY_TO_OFFSET)) return;
+    heldKeys.delete(key);
+
+    const note = offsetToNote(currentOctave, KEY_TO_OFFSET[key]);
+    if (sampler) sampler.triggerRelease(note);
+    highlightKey(note, false);
+  });
+
+  // ===== Registrasi service worker biar bisa diinstall & jalan offline =====
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {
+        // Kalau gagal (misal dibuka langsung dari file lokal tanpa server), abaikan saja
+      });
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
